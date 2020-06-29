@@ -1,23 +1,25 @@
 <#
     .SYNOPSIS
-    Checks running processes for a list of "risky" processes that should not be spawned by "risky" parent processes.
+    Checks running processes for a list of potentially "risky" ones that should not be spawned by certain parent 
+    processes. If found, the results could indicate abormal behavior. 
 
     .DESCRIPTION
-    A blog post by the Microsoft Defender ATP Research Team on June 24, 2020 detailed some scenarios in which an attacker 
-    might exploit a remote code execution (RCE) vulnerability in IIS component of an Exchange Server, and thereby gain 
-    system privileges. See: https://www.microsoft.com/security/blog/2020/06/24/defending-exchange-servers-under-attack/. 
-    One indication of such an exploit might be a "cmd.exe" process (among others) that is spawned by "w3wp.exe", or the 
-    IIS application pool. 
+    A blog post by the Microsoft Defender ATP Research Team on June 24, 2020 detailed some scenarios in which an 
+    attacker might exploit a remote code execution (RCE) vulnerability in the IIS component of an Exchange Server, 
+    and thereby gain system privileges. One indication of such an exploit might be a "cmd.exe" or "mshta.exe" 
+    process (among others) that is spawned by "w3wp.exe" or the IIS application pool. 
+    See: https://www.microsoft.com/security/blog/2020/06/24/defending-exchange-servers-under-attack/. 
+     
     
-    While Windows Defender ATP or other endpoint detection and response (EDR) products may natively be able to detect 
-    such behavior, systems without those protections may not. This script provides a working concept that could notify 
-    admins of these potential exploits, when the script is run as a scheduled task or when used in conjunction with a 
-    monitoring platform such as SolarWinds Orion.
+    While Windows Defender ATP or other endpoint detection and response (EDR) products may natively be able to 
+    detect such behavior, systems without those protections may not. This script provides a working concept that 
+    could notify admins of these potential exploits, when the script is run as a scheduled task or when used in 
+    conjunction with a monitoring platform such as SolarWinds Orion.
 
     .NOTES
     Name: Get-RiskyProcesses
     Author: Sam Erde
-    Last Modified: June 26, 2020
+    Last Modified: June 29, 2020
 
     .LINK
     https://github.com/SturdyErde/Get-RiskyProcesses
@@ -40,15 +42,15 @@
 [CmdletBinding(DefaultParameterSetName = 'Output')]
 param (
     [Parameter()]
-    [ValidateSet('Here','Orion','Email')]
-    [string]$Output = 'Here'
+    [ValidateSet('Host','Orion','Email')]
+    [string]$Output = 'Host'
 )
 
 # ---------- Custom Declarations ---------- 
-$emailTo = ""
-$emailFrom = ""
-$emailSubject = ""
-$emailServer = ""
+$emailTo = "recipient@email.com"
+$emailFrom = "sender@email.com"
+$emailSubject = "Risky Processes Spawned by a Listed Parent"
+$emailServer = "server@email.com"
 # ---------- End Custom Declarations ---------- 
 
 # ---------- Standard Declarations ---------- 
@@ -65,7 +67,7 @@ $checkProcesses = $allProcesses | Where-Object -Property Name -in -Value $riskyP
 # In the resulting list, we need to know the parent process name so we can evaluate whether or not there is a risk in this context.
 foreach ($thisProcess in $checkProcesses) {
     # Create a custom object that adds the parent process name to the existing process details.
-    $processDetails = $thisProcess | Select-Object -Property *, @{Name = 'ParentProcessName'; Expression= { ($allProcesses | Where-Object {$_.ProcessId -eq $thisProcess.ParentProcessId}).Name } }
+    $processDetails = $thisProcess | Select-Object -Property *, @{Name = 'ParentProcessName'; Expression= { ($allProcesses.Where({$_.ProcessId -eq $thisProcess.ParentProcessId}).Name) } }
     Write-Verbose $processDetails | Select-Object Name,ProcessId,ParentProcessName,ParentProcessId,CommandLine
 }
 
@@ -101,13 +103,12 @@ Function OutputOrion {
 
 Function OutputEmail {
     # A very basic function that could be beautified.
-    Send-MailMessage -From $emailFrom -To $emailTo -Subject $emailSubject -SmtpServer $emailServer -Body $riskDetails
+    [string]$riskMessage = $riskDetails | ConvertTo-Json
+    $message = "The following processes were spawned by a sensitive parent process and could be considered abnormal. `nParent processes reviewed include: $($riskyParents).`n`n " + $riskMessage
+    Send-MailMessage -From $emailFrom -To $emailTo -Subject $emailSubject -SmtpServer $emailServer -Body $message
 }
 
-# Finally show the output at the end, using this if block.
-if ([string]::IsNullOrEmpty($Output) -or $Output -eq 'Here') {
-    $riskDetails
-}
-# Customized output functions must be above this if/else block!
+# Finally show the output at the end, using this if block. Customized output functions must be above this!
+if ([string]::IsNullOrEmpty($Output) -or $Output -eq 'Host') { $riskDetails }
 elseif ($Output -eq 'Orion') { OutputOrion }
 elseif ($Output -eq 'Email') { OutputEmail }
