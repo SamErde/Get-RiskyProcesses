@@ -1,7 +1,7 @@
 <#
     .SYNOPSIS
     Checks running processes for a list of potentially "risky" ones that should not be spawned by certain parent 
-    processes. If found, the results could indicate abormal behavior. 
+    processes. If found, the results could indicate abnormal behavior. 
 
     .DESCRIPTION
     A blog post by the Microsoft Defender ATP Research Team on June 24, 2020 detailed some scenarios in which an 
