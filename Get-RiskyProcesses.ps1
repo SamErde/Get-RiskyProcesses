@@ -9,20 +9,19 @@
     and thereby gain system privileges. One indication of such an exploit might be a "cmd.exe" or "mshta.exe" 
     process (among others) that is spawned by "w3wp.exe" or the IIS application pool. 
     See: https://www.microsoft.com/security/blog/2020/06/24/defending-exchange-servers-under-attack/. 
-     
-    
+
     While Windows Defender ATP or other endpoint detection and response (EDR) products may natively be able to 
     detect such behavior, systems without those protections may not. This script provides a working concept that 
     could notify admins of these potential exploits, when the script is run as a scheduled task or when used in 
-    conjunction with a monitoring platform such as SolarWinds Orion.
+    conjunction with a monitoring platform.
 
     .NOTES
     Name: Get-RiskyProcesses
     Author: Sam Erde
-    Last Modified: June 29, 2020
+    Created: June 29, 2020
 
     .LINK
-    https://github.com/SturdyErde/Get-RiskyProcesses
+    https://github.com/SamErde/Get-RiskyProcesses
 
     .PARAMETER Output
     A string that specifies how results will be displayed. Valid options include Host, Email, and Orion. 
@@ -89,7 +88,7 @@ foreach ($detail in $processDetails) {
     Syntax for an Orion monitoring component output is included as one option.
 #>
 
-Function OutputOrion {
+Function Out-Orion {
     #Format the output for Orion. The message can be a string, but the statistic must be a number.
         if ($riskDetails.Count -gt 0) {
             Write-Host "Statistic.RiskyProcesses: $($riskDetails.Count)" 
@@ -101,14 +100,17 @@ Function OutputOrion {
         }
     }
 
-Function OutputEmail {
+Function Out-Email {
     # A very basic function that could be beautified.
     [string]$riskMessage = $riskDetails | ConvertTo-Json
     $message = "The following processes were spawned by a sensitive parent process and could be considered abnormal. `nParent processes reviewed include: $($riskyParents).`n`n " + $riskMessage
     Send-MailMessage -From $emailFrom -To $emailTo -Subject $emailSubject -SmtpServer $emailServer -Body $message
 }
 
-# Finally show the output at the end, using this if block. Customized output functions must be above this!
-if ([string]::IsNullOrEmpty($Output) -or $Output -eq 'Host') { $riskDetails }
-elseif ($Output -eq 'Orion') { OutputOrion }
-elseif ($Output -eq 'Email') { OutputEmail }
+switch ($Output) {
+    'Orion' { Out-Orion }
+    'Email' { Out-Email }
+    Default {
+        $riskDetails
+    }
+}
